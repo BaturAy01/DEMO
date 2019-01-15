@@ -16,7 +16,10 @@ public class SpawnManager : MonoBehaviour
 {
     [SerializeField] private List<SpawnPoint> _sharedSpawnPoints = new List<SpawnPoint>();
     System.Random _random = new System.Random();
-	float _closestDistance;
+
+    //Minimum uzaklığı doğru hesaplayabilmek için ilk değer olabilecek en büyük değer olmalıdır.
+    float _closestDistance = float.MaxValue;
+
     [Tooltip("This will be used to calculate the second filter where algorithm looks for closest friends, if the friends are away from this value, they will be ignored")]
     [SerializeField] private float _maxDistanceToClosestFriend = 30;
     [Tooltip("This will be used to calculate the first filter where algorithm looks for enemies that are far away from this value. Only enemies which are away from this value will be calculated.")]
@@ -30,10 +33,8 @@ public class SpawnManager : MonoBehaviour
 
     private void Awake()
     {
-		_sharedSpawnPoints.AddRange(FindObjectsOfType<SpawnPoint>());
-
-		DummyPlayers = FindObjectsOfType<DummyPlayer>();
-        //print("Buraya system çalışınca giriyor");
+        _sharedSpawnPoints.AddRange(FindObjectsOfType<SpawnPoint>());
+        DummyPlayers = FindObjectsOfType<DummyPlayer>();
     }
 
     #region SPAWN ALGORITHM
@@ -44,19 +45,16 @@ public class SpawnManager : MonoBehaviour
         GetSpawnPointsByDistanceSpawning(/*Please add appropriate parameters here*/);
         if (spawnPoints.Count <= 0)
         {
-            //print("Buraya giriyor");
             GetSpawnPointsBySquadSpawning(team, ref spawnPoints);
         }
         SpawnPoint spawnPoint = spawnPoints.Count <= 1 ? spawnPoints[0] : spawnPoints[_random.Next(0, (int)((float)spawnPoints.Count * .5f))];
         spawnPoint.StartTimer();
-        //print("Buraya giriyor");
         return spawnPoint;
-        
     }
 
     private void GetSpawnPointsByDistanceSpawning(/*Please add appropriate parameters here*/)
     {
-		//Please apply your algorithm here
+        //Please apply your algorithm here
     }
 
     private void GetSpawnPointsBySquadSpawning(PlayerTeam team, ref List<SpawnPoint> suitableSpawnPoints)
@@ -64,24 +62,19 @@ public class SpawnManager : MonoBehaviour
         if (suitableSpawnPoints == null)
         {
             suitableSpawnPoints = new List<SpawnPoint>();
-            //print("Buraya girmiyor");
         }
-        //print("Buraya giriyor");
+
         suitableSpawnPoints.Clear();
         _sharedSpawnPoints.Sort(delegate (SpawnPoint a, SpawnPoint b)
         {
             if (a.DistanceToClosestFriend == b.DistanceToClosestFriend)
             {
-                //print("Buraya giriyor");
-                // 0 ile 1 i değiştirmek birşeyi değiştirmiyor.
                 return 0;
             }
             if (a.DistanceToClosestFriend > b.DistanceToClosestFriend)
             {
-                //print("Buraya girmiyor");
                 return 1;
             }
-            //print("Buraya girmiyor");
             return -1;
         });
         for (int i = 0; i < _sharedSpawnPoints.Count && _sharedSpawnPoints[i].DistanceToClosestFriend <= _maxDistanceToClosestFriend; i++)
@@ -89,13 +82,11 @@ public class SpawnManager : MonoBehaviour
             if (!(_sharedSpawnPoints[i].DistanceToClosestFriend <= _minMemberDistance) && !(_sharedSpawnPoints[i].DistanceToClosestEnemy <= _minMemberDistance) && _sharedSpawnPoints[i].SpawnTimer <= 0)
             {
                 suitableSpawnPoints.Add(_sharedSpawnPoints[i]);
-                //print("Buraya girmiyor");
             }
         }
         if (suitableSpawnPoints.Count <= 0)
         {
             suitableSpawnPoints.Add(_sharedSpawnPoints[0]);
-            //print("Buraya giriyor");
         }
 
     }
@@ -106,7 +97,6 @@ public class SpawnManager : MonoBehaviour
         {
             _sharedSpawnPoints[i].DistanceToClosestFriend = GetDistanceToClosestMember(_sharedSpawnPoints[i].PointTransform.position, playerTeam);
             _sharedSpawnPoints[i].DistanceToClosestEnemy = GetDistanceToClosestMember(_sharedSpawnPoints[i].PointTransform.position, playerTeam == PlayerTeam.BlueTeam ? PlayerTeam.RedTeam : playerTeam == PlayerTeam.RedTeam ? PlayerTeam.BlueTeam : PlayerTeam.None);
-            //print("Buraya Giriyor");
         }
     }
 
@@ -117,12 +107,10 @@ public class SpawnManager : MonoBehaviour
             if (!player.Disabled && player.PlayerTeamValue != PlayerTeam.None && player.PlayerTeamValue == playerTeam && !player.IsDead())
             {
                 float playerDistanceToSpawnPoint = Vector3.Distance(position, player.Transform.position);
+
                 if (playerDistanceToSpawnPoint < _closestDistance)
                 {
                     _closestDistance = playerDistanceToSpawnPoint;
-                    
-                    //print("Buraya girmiyor");
-
                 }
             }
         }
@@ -130,14 +118,14 @@ public class SpawnManager : MonoBehaviour
     }
 
     #endregion
-	/// <summary>
-	/// Test için paylaşımlı spawn noktalarından en uygun olanını seçer.
-	/// Test oyuncusunun pozisyonunu seçilen spawn noktasına atar.
-	/// </summary>
+    /// <summary>
+    /// Test için paylaşımlı spawn noktalarından en uygun olanını seçer.
+    /// Test oyuncusunun pozisyonunu seçilen spawn noktasına atar.
+    /// </summary>
     public void TestGetSpawnPoint()
     {
-    	SpawnPoint spawnPoint = GetSharedSpawnPoint(PlayerToBeSpawned.PlayerTeamValue);
-    	PlayerToBeSpawned.Transform.position = spawnPoint.PointTransform.position;
+        SpawnPoint spawnPoint = GetSharedSpawnPoint(PlayerToBeSpawned.PlayerTeamValue);
+        PlayerToBeSpawned.Transform.position = spawnPoint.PointTransform.position;
         //print("Test spawnı buradan yapıyor");
     }
 
