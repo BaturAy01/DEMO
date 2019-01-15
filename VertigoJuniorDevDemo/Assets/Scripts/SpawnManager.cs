@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Reflection;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.Assertions;
 
@@ -17,8 +19,7 @@ public class SpawnManager : MonoBehaviour
     [SerializeField] private List<SpawnPoint> _sharedSpawnPoints = new List<SpawnPoint>();
     System.Random _random = new System.Random();
 
-    //Minimum uzaklığı doğru hesaplayabilmek için ilk değer olabilecek en büyük değer olmalıdır.
-    float _closestDistance = float.MaxValue;
+
 
     [Tooltip("This will be used to calculate the second filter where algorithm looks for closest friends, if the friends are away from this value, they will be ignored")]
     [SerializeField] private float _maxDistanceToClosestFriend = 30;
@@ -42,8 +43,8 @@ public class SpawnManager : MonoBehaviour
     {
         List<SpawnPoint> spawnPoints = new List<SpawnPoint>(_sharedSpawnPoints.Count);
         CalculateDistancesForSpawnPoints(team);
-        GetSpawnPointsByDistanceSpawning(/*Please add appropriate parameters here*/);
-        if (spawnPoints.Count <= 0)
+        GetSpawnPointsByDistanceSpawning(team, ref spawnPoints);
+        if (spawnPoints.Count == 0)
         {
             GetSpawnPointsBySquadSpawning(team, ref spawnPoints);
         }
@@ -52,40 +53,53 @@ public class SpawnManager : MonoBehaviour
         return spawnPoint;
     }
 
-    private void GetSpawnPointsByDistanceSpawning(/*Please add appropriate parameters here*/)
+    private void GetSpawnPointsByDistanceSpawning(PlayerTeam team, ref List<SpawnPoint> suitableSpawnPoints)
     {
-        //Please apply your algorithm here
-    }
+        
+        
+        if (suitableSpawnPoints == null)
+        {
+            suitableSpawnPoints = new List<SpawnPoint>();
+        }
+        suitableSpawnPoints.Clear();
+        ReverseSortSpawnPointsByEnemyDistance();  // Büyükten küçüğe doğru spawn noktalarını sıralar. 
 
+        for (int i = 0; i < _sharedSpawnPoints.Count && _sharedSpawnPoints[i].DistanceToClosestEnemy > _minDistanceToClosestEnemy; i++) // Bir sonraki spawn noktasının en yakın düşman uzaklığı, belirlenen en yakın düşman uzaklağından büyük sürece döngü devam eder.
+        {
+            int _minPlayerDistance = Math.Min((int)_sharedSpawnPoints[i].DistanceToClosestEnemy, (int)_sharedSpawnPoints[i].DistanceToClosestFriend); // Spawn noktasının herhangi bir oyuncuya olan uzaklığını tutar.
+            if (_minPlayerDistance > _minMemberDistance && _sharedSpawnPoints[i].SpawnTimer <= 0) // Minimum oyuncuya olan uzaklık belirlenen en yakın uzaklıktan büyükse ve iki saniyedir o nokta seçilmemiş ise spawn noktası aday listeye eklenir.
+            {
+                suitableSpawnPoints.Add(_sharedSpawnPoints[i]);
+                print(i + ". nokta eklendi. \nEn yakın düşman uzaklığı: " + _sharedSpawnPoints[i].DistanceToClosestEnemy + " - En yakın oyuncu uzaklığı: " + _minPlayerDistance);
+
+            }
+        }
+        if (suitableSpawnPoints.Count <= 0) // Hiçbir Nokta uyumlu değil ise ilk spawn noktasına atanır.
+        {
+            print("Uygun nokta bulunamadığı için ilk Spawn noktasına atandı.");
+            suitableSpawnPoints.Add(_sharedSpawnPoints[0]);
+        }
+
+    }
     private void GetSpawnPointsBySquadSpawning(PlayerTeam team, ref List<SpawnPoint> suitableSpawnPoints)
     {
         if (suitableSpawnPoints == null)
         {
             suitableSpawnPoints = new List<SpawnPoint>();
         }
-
         suitableSpawnPoints.Clear();
-        _sharedSpawnPoints.Sort(delegate (SpawnPoint a, SpawnPoint b)
+        SortSpawnPointsByFriendDistance();
+
+        for (int i = 0; i < _sharedSpawnPoints.Count && _sharedSpawnPoints[i].DistanceToClosestFriend > _maxDistanceToClosestFriend; i++)
         {
-            if (a.DistanceToClosestFriend == b.DistanceToClosestFriend)
-            {
-                return 0;
-            }
-            if (a.DistanceToClosestFriend > b.DistanceToClosestFriend)
-            {
-                return 1;
-            }
-            return -1;
-        });
-        for (int i = 0; i < _sharedSpawnPoints.Count && _sharedSpawnPoints[i].DistanceToClosestFriend <= _maxDistanceToClosestFriend; i++)
-        {
-            if (!(_sharedSpawnPoints[i].DistanceToClosestFriend <= _minMemberDistance) && !(_sharedSpawnPoints[i].DistanceToClosestEnemy <= _minMemberDistance) && _sharedSpawnPoints[i].SpawnTimer <= 0)
+            if (_sharedSpawnPoints[i].DistanceToClosestFriend > _minMemberDistance && _sharedSpawnPoints[i].DistanceToClosestEnemy > _minMemberDistance && _sharedSpawnPoints[i].SpawnTimer <= 0)
             {
                 suitableSpawnPoints.Add(_sharedSpawnPoints[i]);
             }
         }
         if (suitableSpawnPoints.Count <= 0)
         {
+            print("Uygun nokta bulunamadığı için ilk Spawn noktasına atandı.");
             suitableSpawnPoints.Add(_sharedSpawnPoints[0]);
         }
 
@@ -100,10 +114,45 @@ public class SpawnManager : MonoBehaviour
         }
     }
 
+    private void SortSpawnPointsByFriendDistance()
+    {
+        _sharedSpawnPoints.Sort(delegate (SpawnPoint a, SpawnPoint b)
+        {
+            if (a.DistanceToClosestFriend == b.DistanceToClosestFriend)
+            {
+                return 0;
+            }
+            if (a.DistanceToClosestFriend > b.DistanceToClosestFriend)
+            {
+                return 1;
+            }
+            return -1;
+        });
+    }
+
+    private void ReverseSortSpawnPointsByEnemyDistance()
+    {
+        _sharedSpawnPoints.Sort(delegate (SpawnPoint a, SpawnPoint b)
+        {
+            if (a.DistanceToClosestEnemy == b.DistanceToClosestEnemy)
+            {
+                return 0;
+            }
+            if (a.DistanceToClosestEnemy < b.DistanceToClosestEnemy)
+            {
+                return 1;
+            }
+            return -1;
+        });
+    }
+
     private float GetDistanceToClosestMember(Vector3 position, PlayerTeam playerTeam)
     {
+        //Minimum uzaklığı doğru hesaplayabilmek için ilk değer olabilecek en büyük değer olmalıdır
+        float _closestDistance = float.MaxValue;
         foreach (var player in DummyPlayers)
         {
+
             if (!player.Disabled && player.PlayerTeamValue != PlayerTeam.None && player.PlayerTeamValue == playerTeam && !player.IsDead())
             {
                 float playerDistanceToSpawnPoint = Vector3.Distance(position, player.Transform.position);
@@ -114,6 +163,7 @@ public class SpawnManager : MonoBehaviour
                 }
             }
         }
+
         return _closestDistance;
     }
 
@@ -124,9 +174,36 @@ public class SpawnManager : MonoBehaviour
     /// </summary>
     public void TestGetSpawnPoint()
     {
+        Utils.ClearLogConsole();
         SpawnPoint spawnPoint = GetSharedSpawnPoint(PlayerToBeSpawned.PlayerTeamValue);
         PlayerToBeSpawned.Transform.position = spawnPoint.PointTransform.position;
-        //print("Test spawnı buradan yapıyor");
+        
+    }
+   
+}
+
+/**
+ * Konsol çıktısını temizler.
+ **/
+public static class Utils
+{
+    static MethodInfo _clearConsoleMethod;
+    static MethodInfo clearConsoleMethod
+    {
+        get
+        {
+            if (_clearConsoleMethod == null)
+            {
+                Assembly assembly = Assembly.GetAssembly(typeof(SceneView));
+                Type logEntries = assembly.GetType("UnityEditor.LogEntries");
+                _clearConsoleMethod = logEntries.GetMethod("Clear");
+            }
+            return _clearConsoleMethod;
+        }
     }
 
+    public static void ClearLogConsole()
+    {
+        clearConsoleMethod.Invoke(new object(), null);
+    }
 }
